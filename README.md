@@ -9,3 +9,5 @@ cd backend
 npm install
 npm start
 # -> http://localhost:4000
+
+echo "triggering CI/CD" >> README.md
