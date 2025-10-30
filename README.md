@@ -10,4 +10,4 @@ npm install
 npm start
 # -> http://localhost:4000
 
-echo "triggering CI/CD" >> README.md
+echo "triggering CICD" >> README.md
