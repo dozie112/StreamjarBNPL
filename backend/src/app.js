@@ -2,6 +2,7 @@
 console.log("🟦 app.js LOADED");
 
 // ---- Imports ----
+import dbRouter from "./routes/db.route.js"; 
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
@@ -21,6 +22,8 @@ console.log("🟩 Mounting API routes");
 
 // Health routes (service checks)
 app.use("/health", healthRouter);
+// Database routes (for testing DB connection)  
+app.use("/db", dbRouter);
 
 // ✅ Products routes (main feature for BNPL store)
 app.use("/api/products", productsRouter);
