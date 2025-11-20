@@ -7,8 +7,12 @@ services:
     ports:
       - "4000:4000"
     environment:
-      - PORT=4000
-      - HOST=0.0.0.0
+        PORT: "4000"
+        HOST: "0.0.0.0"
+        NODE_ENV: "development"
+        DATABASE_URL: "postgresql://bnpl:bnplpass@db:5432/bnpl"
+    depends_on:
+      - db
     healthcheck:
       # Use CMD-SHELL so we can OR/exit with proper codes
       test: ["CMD-SHELL", "curl -fsS http://localhost:4000/health || exit 1"]
@@ -29,3 +33,23 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+  db:
+    image: postgres:16-alpine
+    container_name: bnpl-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: bnpl
+      POSTGRES_USER: bnpl
+      POSTGRES_PASSWORD: bnplpass
+    ports:
+      - "5432:5432"             # optional: expose to host for tools
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bnpl -d bnpl"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  db_data:

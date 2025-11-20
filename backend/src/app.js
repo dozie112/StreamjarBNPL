@@ -1,75 +1,63 @@
-// src/app.js
-console.log("🟦 app.js LOADED");
+// backend/src/app.js
 
-// ---- Imports ----
-import dbRouter from "./routes/db.route.js"; 
+// ---- Core imports ----
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
+
+// ---- Routers ----
 import healthRouter from "./routes/health.route.js";
-import productsRouter from "./routes/products.route.js";   // ✅ added router import
+import dbRouter from "./routes/db.route.js";
+import productsRouter from "./routes/products.route.js";
+import ordersRouter from "./routes/orders.route.js"; // GET /api/orders + POST /api/orders
+
+// ---- Middleware ----
 import { errorHandler } from "./middleware/errorHandler.js";
 
 const app = express();
 
-// ---- Core middleware (order matters) ----
-app.use(cors());            // enables frontend ↔ backend communication
-app.use(express.json());    // parses incoming JSON requests
-app.use(morgan("dev"));     // logs each HTTP request (useful for debugging)
+// ---- Global middleware (order matters) ----
+app.use(cors());           // allow frontend ↔ backend
+app.use(express.json());   // parse JSON bodies
+app.use(morgan("dev"));    // request logs
 
 // ---- Routes ----
-console.log("🟩 Mounting API routes");
+app.use("/health", healthRouter);          // liveness/readiness
+app.use("/db", dbRouter);                  // DB ping/checks
+app.use("/api/products", productsRouter);  // products CRUD (currently list/detail)
+app.use("/api/orders", ordersRouter);      // orders list + create
 
-// Health routes (service checks)
-app.use("/health", healthRouter);
-// Database routes (for testing DB connection)  
-app.use("/db", dbRouter);
-
-// ✅ Products routes (main feature for BNPL store)
-app.use("/api/products", productsRouter);
-
-// ---- Central error handler (always last) ----
-app.use(errorHandler);
-
-// --- SAFE DEBUG: list all registered routes (temporary helper) ---
+// ---- Debug helper (safe to remove later) ----
 app.get("/__debug_routes", (_req, res) => {
   try {
     const routes = [];
-
-    const pushRoute = (route, mountPath = "") => {
-      if (!route) return;
-      const path = Array.isArray(route.path) ? route.path.join("|") : route.path;
-      const methods = Object.keys(route.methods || {});
-      routes.push({ path: `${mountPath}${path}`, methods });
+    const push = (r, base = "") => {
+      if (!r) return;
+      const path = Array.isArray(r.path) ? r.path.join("|") : r.path;
+      const methods = Object.keys(r.methods || {});
+      routes.push({ path: `${base}${path}`, methods });
     };
-
     (app._router?.stack || []).forEach((layer) => {
-      // Direct app route (e.g., app.get('/x', ...))
-      if (layer.route) {
-        pushRoute(layer.route);
-        return;
-      }
-
-      // Mounted router (e.g., app.use('/health', healthRouter))
+      if (layer.route) return push(layer.route);
       const isRouter = layer.name === "router";
       const stack = layer.handle && layer.handle.stack;
+      const base =
+        layer.regexp?.fast_slash
+          ? ""
+          : (layer.regexp?.toString().match(/\/\^\\(.*)\\\/?\(\?\=\/\|\$\)\/i?/)?.[1] || "")
+              .replace(/\\\//g, "/")
+              .replace(/\$$/, "");
       if (isRouter && Array.isArray(stack)) {
-        // Attach both /health and /api/products dynamically
-        stack.forEach((sublayer) => {
-          if (sublayer.route) {
-            const prefix = layer.regexp?.source.includes("health")
-              ? "/health"
-              : "/api/products";
-            pushRoute(sublayer.route, prefix);
-          }
-        });
+        stack.forEach((s) => s.route && push(s.route, base.startsWith("/") ? base : `/${base}`));
       }
     });
-
     res.json(routes);
   } catch (e) {
     res.status(500).json({ ok: false, error: e?.message || String(e) });
   }
 });
+
+// ---- Central error handler (always last) ----
+app.use(errorHandler);
 
 export default app;
